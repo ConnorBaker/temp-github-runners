@@ -1,0 +1,77 @@
+name: Set up Nix
+
+description: Set up Nix with cantcache.me and magic cache
+
+inputs:
+  min-job-index:
+    description: The minimum job index
+    required: true
+  job-index:
+    description: The job index
+    required: true
+  max-job-index:
+    description: The maximum job index
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Set up /mnt
+      uses: ./.github/actions/setup-mnt-tmp-nix
+
+    - name: Install nix
+      if: runner.os == 'Linux'
+      uses: DeterminateSystems/nix-installer-action@main
+      with:
+        extra-conf: |
+          accept-flake-config = true
+          allow-import-from-derivation = false
+          auto-allocate-uids = true
+          builders-use-substitutes = true
+          connect-timeout = 10
+          experimental-features = auto-allocate-uids cgroups fetch-closure fetch-tree flakes git-hashing nix-command no-url-literals parse-toml-timestamps verified-fetches
+          fsync-metadata = false
+          http-connections = 16
+          log-lines = 100
+          max-substitution-jobs = 4
+          narinfo-cache-negative-ttl = 0
+          sandbox-fallback = false
+          substituters = https://cantcache.me/cuda https://cache.nixos.org
+          trusted-public-keys = cuda:NtbpAU7XGYlttrhCduqvpYKottCPdWVITWT+3nFVTBY= cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY=
+          trusted-substituters = https://cantcache.me/cuda https://cuda-maintainers.cachix.org
+          trusted-users = root runner @wheel
+          use-cgroups = true
+          use-xdg-base-directories = true
+          warn-dirty = false
+
+    - name: Enforce overrides to Nix config
+      if: runner.os == 'Linux'
+      shell: bash
+      run: |
+        echo "Overriding defaults for DeterminateSystems/nix-installer-action"
+        sudo sed \
+          -e 's/auto-optimise-store = true/auto-optimise-store = false/g' \
+          -e 's/build-users-group = nixbld/build-users-group =/g' \
+          -e 's/max-jobs = auto/max-jobs = 1/g' \
+          -i /etc/nix/nix.conf
+
+    - name: Add remote builders
+      if: runner.os == 'Linux'
+      shell: bash
+      run: |
+        for i in $(seq "${{ inputs.min-job-index }}" "${{ inputs.max-job-index }}"); do
+          if [ "$i" -eq "${{ inputs.job-index }}" ]; then
+            echo "Skipping $i as it is the current job index and remote builders should be irreflexive"
+            continue
+          fi
+          echo "Adding remote builder $i"
+          echo "ssh-ng://ci-$i x86_64-linux - 1 1 benchmark,big-parallel,kvm,nixos-test,uid-range - -" \
+          | sudo tee -a /etc/nix/remote-builders.conf
+          echo "Testing whether the store on ci-$i is accessible"
+          nix store info --store "ssh-ng://ci-$i" && echo "Store is accessible" || echo "Store is not accessible"
+        done
+
+    - name: Install magic nix cache
+      uses: DeterminateSystems/magic-nix-cache-action@main
+      with:
+        upstream-cache: https://cantcache.me/cuda

@@ -1,0 +1,15 @@
+name: Teardown WARP for IPv6
+
+description: Teardown WARP for IPv6
+
+runs:
+  using: composite
+  steps:
+    - name: Stop Cloudflare WARP
+      if: ${{ always() }}
+      shell: bash
+      run: |
+        if [[ "$(command -v warp-cli)" == '' ]]; then
+          exit 0
+        fi
+        sudo warp-cli --accept-tos disconnect

@@ -1,0 +1,35 @@
+name: Set up Attic
+
+description: Set up Attic to push to direct.cantcache.me
+
+inputs:
+  cache-key:
+    description: The Attic cache key
+    required: true
+  rev:
+    description: The Attic revision to install
+    required: false
+    default: 4dbdbee45728d8ce5788db6461aaaa89d98081f0
+
+runs:
+  using: composite
+  steps:
+    - name: Install Attic
+      shell: bash
+      run: |
+        nix profile install \
+          --print-build-logs \
+          --profile "$HOME/.nix-profile" \
+          "github:zhaofengli/attic/${{ inputs.rev }}#attic"
+
+    - name: Log in to Attic
+      shell: bash
+      run: |
+        attic login \
+          cuda-server-push \
+          https://direct.cantcache.me/ \
+          "${{ inputs.cache-key }}"
+
+    - name: Print the cache info
+      shell: bash
+      run: attic cache info cuda-server-push:cuda

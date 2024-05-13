@@ -1,0 +1,38 @@
+name: Set up /mnt with bind mounts
+
+description: Set up /mnt with bind mounts for /tmp and /nix
+
+runs:
+  using: composite
+  steps:
+    - name: Print disk info
+      uses: ./.github/actions/print-disk-info
+
+    - name: Check for disk mounted at /mnt
+      shell: bash
+      run: |
+        if [[ ! -e /mnt ]]; then
+          echo "/mnt does not exist"
+          exit 1
+        fi
+
+    - name: Wipe the contents of the disk mounted at /mnt
+      shell: bash
+      run: |
+        sudo rm -rf /mnt/*
+
+    - name: Create /tmp directory as a bind mount
+      shell: bash
+      run: |
+        sudo mkdir -p /mnt/tmp /tmp
+        sudo mount --bind /mnt/tmp /tmp
+        sudo chmod 1777 /tmp
+
+    - name: Create /nix directory as a bind mount
+      shell: bash
+      run: |
+        sudo mkdir -p /mnt/nix /nix
+        sudo mount --bind /mnt/nix --options defaults,noatime /nix
+
+    - name: Print disk info
+      uses: ./.github/actions/print-disk-info

@@ -1,0 +1,56 @@
+name: Set up ZRAM
+
+description: Set up ZRAM for faster swap
+
+inputs:
+  zram-size-gb:
+    description: The size of the ZRAM device in GB
+    required: false
+    default: '32'
+
+runs:
+  using: composite
+  steps:
+    - name: Disable disk-based swap
+      if: runner.os == 'Linux'
+      shell: bash
+      run: |
+        echo "Getting swap disks"
+        readarray -t swap_disks < <(swapon --show --noheadings | cut -f1 -d" ")
+        echo "Found swap disk(s): ${swap_disks[*]}"
+        for swap_disk in "${swap_disks[@]}"; do
+          echo "Disabling swap on ${swap_disk}"
+          sudo swapoff "$swap_disk"
+          echo "Removing swap disk ${swap_disk}"
+          sudo rm "$swap_disk"
+        done
+
+    # We need to install linux-modules-extra-azure to get the zram module
+    # But we need to install the version that matches the kernel version
+    - name: Install ZRAM module
+      if: runner.os == 'Linux'
+      shell: bash
+      run: |
+        sudo apt update
+        sudo apt install -y "linux-modules-extra-$(uname -r)"
+
+    - name: Enable ZRAM module
+      if: runner.os == 'Linux'
+      shell: bash
+      run: |
+        sudo modprobe zram num_devices=1
+        udevadm settle
+
+    - name: Set up ZRAM device
+      if: runner.os == 'Linux'
+      shell: bash
+      run: |
+        sudo zramctl --find --algorithm zstd --size "${{ inputs.zram-size-gb }}GB"
+        udevadm settle
+
+    - name: Activate ZRAM device as swap
+      if: runner.os == 'Linux'
+      shell: bash
+      run: |
+        sudo mkswap /dev/zram0
+        sudo swapon --priority -2 /dev/zram0

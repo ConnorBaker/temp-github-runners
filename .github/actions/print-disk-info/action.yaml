@@ -1,0 +1,16 @@
+name: Prints disk information
+
+description: Prints disk information
+
+runs:
+  using: composite
+  steps:
+    - name: Print disk topology
+      if: runner.os == 'Linux'
+      shell: bash
+      run: lsblk --fs --topology
+
+    - name: Print filesystems
+      if: runner.os == 'Linux'
+      shell: bash
+      run: df -ah

@@ -1,0 +1,17 @@
+name: Push to Attic
+
+description: Push to the Attic cuda cache at direct.cantcache.me
+
+runs:
+  using: composite
+  steps:
+    - name: Push to Attic
+      if: ${{ always() }}
+      shell: bash
+      run: |
+        if [[ "$(command -v nix)" == '' || "$(command -v attic)" == '' ]]; then
+          exit 0
+        fi
+        nix path-info --all \
+        | grep -vE '^.+\.(drv|lock)$' \
+        | xargs attic push cuda-server-push:cuda

@@ -1,0 +1,77 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  # generate-derivations:
+  #   runs-on: ubuntu-latest
+  #   outputs:
+  #     derivations: ${{ steps.generate-derivations.outputs.derivations }}
+  #   steps:
+  #     ...
+
+  builders:
+    runs-on: ubuntu-latest
+    # needs: generate-derivations
+    strategy:
+      matrix:
+        job-index: [0, 1, 2]
+    env:
+      MIN_JOB_INDEX: "0"
+      JOB_INDEX: "${{ matrix.job-index }}"
+      MAX_JOB_INDEX: "2"
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up WARP for IPv6
+        uses: ./.github/actions/setup-warp
+
+      - name: Tailscale
+        uses: tailscale/github-action@2075411ebb63dbe61f4ae09cfc045949beb9a8d1
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: tag:ci
+          version: 1.66.1
+          hostname: ci-${{ matrix.job-index }}
+          args: --ssh
+
+      - name: Set up ZRAM
+        uses: ./.github/actions/setup-zram
+      - name: Set up Nix
+        uses: ./.github/actions/setup-nix
+        with:
+          min-job-index: ${{ env.MIN_JOB_INDEX }}
+          job-index: ${{ env.JOB_INDEX }}
+          max-job-index: ${{ env.MAX_JOB_INDEX }}
+      - name: Set up Attic
+        uses: ./.github/actions/setup-attic
+        with:
+          cache-key: ${{ secrets.ATTIC_CUDA_PUSH_SERVER_CUDA_KEY }}
+
+      # - name: Test build
+      #   if: ${{ matrix.job-index == 0 }}
+      #   run: |
+      #     mkdir -p ~/.config/nixpkgs
+      #     cat <<EOF > ~/.config/nixpkgs/config.nix
+      #     {
+      #       allowUnfree = true;
+      #       allowBroken = false;
+      #       allowAliases = false;
+      #       cudaSupport = true;
+      #       cudaCapabilities = [ "8.9" ];
+      #     }
+      #     EOF
+      #     nix build \
+      #       --impure \
+      #       --print-build-logs \
+      #       --show-trace \
+      #       --option max-jobs 0 \
+
+
+      - name: Post Attic
+        uses: ./.github/actions/post-attic
+      - name: Post WARP
+        uses: ./.github/actions/post-warp

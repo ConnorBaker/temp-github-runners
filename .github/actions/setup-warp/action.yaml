@@ -1,0 +1,47 @@
+name: Set up WARP for IPv6
+
+description: Set up WARP for IPv6
+
+runs:
+  using: composite
+  steps:
+    - name: Add Cloudflare's GPG key to Ubuntu
+      if: runner.os == 'Linux'
+      shell: bash
+      run: |
+        curl -fsSL https://pkg.cloudflareclient.com/pubkey.gpg \
+        | sudo gpg --yes --dearmor --output /usr/share/keyrings/cloudflare-warp-archive-keyring.gpg
+
+    - name: AddCloudflare's repository to Ubuntu
+      if: runner.os == 'Linux'
+      shell: bash
+      run: |
+        echo "deb [signed-by=/usr/share/keyrings/cloudflare-warp-archive-keyring.gpg] https://pkg.cloudflareclient.com/ $(lsb_release -cs) main" \
+        | sudo tee /etc/apt/sources.list.d/cloudflare-client.list
+
+    - name: Install Cloudflare WARP
+      if: runner.os == 'Linux'
+      shell: bash
+      run: |
+        sudo apt-get update
+        sudo apt-get install cloudflare-warp -y
+
+    - name: Start Cloudflare WARP
+      if: runner.os == 'Linux'
+      shell: bash
+      run: |
+        sudo warp-cli --accept-tos registration new
+        sudo warp-cli --accept-tos mode warp+doh
+        sudo warp-cli --accept-tos connect
+
+    - name: Test IPv4 connectivity
+      if: runner.os == 'Linux'
+      shell: bash
+      run: |
+        echo "IPv4: $(curl --ipv4 --silent --max-time 15 --retry 3 --user-agent Mozilla https://api.ip.sb/geoip)"
+
+    - name: Test IPv6 connectivity
+      if: runner.os == 'Linux'
+      shell: bash
+      run: |
+        echo "IPv6: $(curl --ipv6 --silent --max-time 15 --retry 3 --user-agent Mozilla https://api.ip.sb/geoip)"
